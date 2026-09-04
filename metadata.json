@@ -1,0 +1,7 @@
+{
+  "name": "AI Startup Validator",
+  "description": "A multi-agent AI system for startup idea validation, market research, business strategy, financial planning, and investment readiness.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
