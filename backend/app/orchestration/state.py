@@ -1,5 +1,5 @@
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from ..utils.time import utc_now_iso
 
 class InvestigationState:
     """
@@ -41,13 +41,13 @@ class InvestigationState:
         details: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         evt = {
-            "id": f"evt-{len(self.events) + 1}",
+            "id": f"evt-{self.investigation_id}-{len(self.events) + 1}",
             "investigation_id": self.investigation_id,
             "agent": agent,
             "stage": stage,
             "event_type": event_type,
             "message": message,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": utc_now_iso(),
             "status": status,
             "tool_name": tool_name,
             "details": details or {}

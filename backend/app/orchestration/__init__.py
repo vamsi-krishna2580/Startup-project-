@@ -1,15 +1,7 @@
-from .state import InvestigationState
-from .actions import ActionType, AgentAction
-from .planner import InvestigationPlanner
-from .executor import ActionExecutor
-from .orchestrator import MultiAgentOrchestrator, orchestrator
+"""State-driven orchestration package.
 
-__all__ = [
-    "InvestigationState",
-    "ActionType",
-    "AgentAction",
-    "InvestigationPlanner",
-    "ActionExecutor",
-    "MultiAgentOrchestrator",
-    "orchestrator"
-]
+Consumers should import the concrete module they need. Avoiding eager imports
+prevents a cycle through the persistence service.
+"""
+
+__all__: list[str] = []

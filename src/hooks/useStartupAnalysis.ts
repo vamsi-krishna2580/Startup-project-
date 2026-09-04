@@ -6,7 +6,7 @@ import {
   AgentStageId,
   AnalysisHistoryItem
 } from '../types/startup';
-import { analyzeStartup } from '../api/startupApi';
+import { analyzeStartup, ApiRequestCancelledError } from '../api/startupApi';
 import { MOCK_BENCHMARK_REPORT } from '../api/mockStartupData';
 import { INITIAL_AGENT_STAGES } from '../utils/formatters';
 
@@ -22,6 +22,8 @@ export function useStartupAnalysis() {
   const [history, setHistory] = useState<AnalysisHistoryItem[]>([]);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const requestAbortRef = useRef<AbortController | null>(null);
+  const activeStageRef = useRef<AgentStageId>(1);
 
   // Load history from localStorage on mount
   useEffect(() => {
@@ -83,6 +85,10 @@ export function useStartupAnalysis() {
 
   // Execute Analysis
   const executeAnalysis = useCallback(async (request: AnalyzeStartupRequest) => {
+    requestAbortRef.current?.abort();
+    const requestController = new AbortController();
+    requestAbortRef.current = requestController;
+    activeStageRef.current = 1;
     setIsLoading(true);
     setError(null);
     setReport(null);
@@ -102,6 +108,7 @@ export function useStartupAnalysis() {
 
     try {
       const result = await analyzeStartup(request, (stageId: AgentStageId, message: string) => {
+        activeStageRef.current = stageId;
         setCurrentStageId(stageId);
         setStages(prev =>
           prev.map(s => {
@@ -114,7 +121,9 @@ export function useStartupAnalysis() {
             }
           })
         );
-      });
+      }, requestController.signal);
+
+      if (requestAbortRef.current !== requestController) return null;
 
       // Mark all completed
       setStages(prev =>
@@ -131,6 +140,9 @@ export function useStartupAnalysis() {
       setCurrentStageId(null);
       return result;
     } catch (err: unknown) {
+      if (err instanceof ApiRequestCancelledError || requestController.signal.aborted) {
+        return null;
+      }
       setIsLoading(false);
       const errObj = err instanceof Error ? err : new Error(String(err));
       
@@ -146,22 +158,26 @@ export function useStartupAnalysis() {
       setError({
         title,
         message: errObj.message,
-        stageId: currentStageId || 1
+        stageId: activeStageRef.current
       });
 
       // Mark current stage failed
       setStages(prev =>
         prev.map(s => {
-          if (s.id === (currentStageId || 1)) {
+          if (s.id === activeStageRef.current) {
             return { ...s, status: 'failed', errorMessage: errObj.message };
           }
           return s;
         })
       );
 
-      throw err;
+      return null;
+    } finally {
+      if (requestAbortRef.current === requestController) {
+        requestAbortRef.current = null;
+      }
     }
-  }, [currentStageId, saveToHistory]);
+  }, [saveToHistory]);
 
   const loadReportDirectly = useCallback((existingReport: StartupReport) => {
     setReport(existingReport);
@@ -171,11 +187,22 @@ export function useStartupAnalysis() {
   }, []);
 
   const clearReport = useCallback(() => {
+    requestAbortRef.current?.abort();
+    requestAbortRef.current = null;
     setReport(null);
     setIsLoading(false);
     setError(null);
     setStages(INITIAL_AGENT_STAGES);
     setCurrentStageId(null);
+  }, []);
+
+  const cancelAnalysis = useCallback(() => {
+    requestAbortRef.current?.abort();
+    requestAbortRef.current = null;
+    setIsLoading(false);
+    setCurrentStageId(null);
+    setError(null);
+    setStages(INITIAL_AGENT_STAGES);
   }, []);
 
   const deleteHistoryItem = useCallback((id: string) => {
@@ -226,6 +253,7 @@ export function useStartupAnalysis() {
     loadFromHistory,
     clearReport,
     resetAnalysis: clearReport,
+    cancelAnalysis,
     deleteHistoryItem,
     deleteFromHistory: deleteHistoryItem,
     clearAllHistory,

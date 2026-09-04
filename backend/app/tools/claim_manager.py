@@ -1,6 +1,6 @@
 import uuid
-from datetime import datetime
 from typing import List, Dict, Any, Optional
+from ..utils.time import utc_now_iso
 
 class ClaimManagerTool:
     """
@@ -22,7 +22,7 @@ class ClaimManagerTool:
         evidence_ids: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         claim_id = f"clm-{uuid.uuid4().hex[:8]}"
-        now = datetime.utcnow().isoformat()
+        now = utc_now_iso()
         return {
             "id": claim_id,
             "investigation_id": investigation_id,
@@ -48,7 +48,7 @@ class ClaimManagerTool:
         claim["evidence_ids"] = evidence_ids
         claim["confidence"] = round(new_conf, 2)
         claim["status"] = "supported" if len(evidence_ids) >= 2 else "weakly_supported"
-        claim["updated_at"] = datetime.utcnow().isoformat()
+        claim["updated_at"] = utc_now_iso()
         return claim
 
     @staticmethod
@@ -56,7 +56,7 @@ class ClaimManagerTool:
         current_conf = claim.get("confidence", 0.5)
         claim["confidence"] = max(0.1, round(current_conf - penalty, 2))
         claim["status"] = "contradicted"
-        claim["updated_at"] = datetime.utcnow().isoformat()
+        claim["updated_at"] = utc_now_iso()
         return claim
 
     @staticmethod

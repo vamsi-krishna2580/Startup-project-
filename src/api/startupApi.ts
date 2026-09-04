@@ -22,10 +22,11 @@ export function getApiSettings(): ApiSettings {
   const storedUrl = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_API_URL) : null;
   const storedMode = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_API_MODE) as 'auto' | 'api' | 'demo' : null;
 
+  const configuredTimeout = Number(import.meta.env.VITE_API_TIMEOUT_MS || 180000);
   return {
     baseUrl: storedUrl !== null ? storedUrl : (envUrl || 'http://localhost:8000'),
     mode: storedMode || (envUrl ? 'api' : 'auto'),
-    timeoutMs: 45000
+    timeoutMs: Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? configuredTimeout : 180000
   };
 }
 
@@ -71,6 +72,22 @@ export class AgentExecutionError extends Error {
     this.name = 'AgentExecutionError';
     this.stageId = stageId;
     this.agentName = agentName;
+  }
+}
+
+export class ApiServerError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiServerError';
+    this.status = status;
+  }
+}
+
+export class ApiRequestCancelledError extends Error {
+  constructor(message = 'Analysis cancelled.') {
+    super(message);
+    this.name = 'ApiRequestCancelledError';
   }
 }
 
@@ -141,7 +158,8 @@ function validateReportSchema(data: unknown): data is StartupReport {
  */
 export async function analyzeStartup(
   request: AnalyzeStartupRequest,
-  onProgress?: (stage: AgentStageId, message: string) => void
+  onProgress?: (stage: AgentStageId, message: string) => void,
+  externalSignal?: AbortSignal
 ): Promise<StartupReport> {
   const settings = getApiSettings();
   const baseUrl = settings.baseUrl.replace(/\/$/, '');
@@ -152,9 +170,19 @@ export async function analyzeStartup(
   }
 
   // Attempt real API call to FastAPI backend
+  const controller = new AbortController();
+  let timedOut = false;
+  const abortFromCaller = () => controller.abort();
+  if (externalSignal?.aborted) {
+    throw new ApiRequestCancelledError();
+  }
+  externalSignal?.addEventListener('abort', abortFromCaller, { once: true });
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, settings.timeoutMs);
+
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), settings.timeoutMs);
 
     // Initial notification for stage 1
     onProgress?.(1, 'Connecting to FastAPI Orchestrator...');
@@ -176,14 +204,17 @@ export async function analyzeStartup(
       signal: controller.signal
     });
 
-    clearTimeout(timer);
-
     if (!response.ok) {
       if (response.status === 504 || response.status === 408) {
         throw new ApiTimeoutError();
       }
-      const errorBody = await response.text().catch(() => '');
-      throw new Error(`Backend returned status ${response.status}: ${errorBody || response.statusText}`);
+      const errorBody = await response.json().catch(() => null) as { detail?: string | { message?: string } } | null;
+      const detail = errorBody?.detail;
+      const message = typeof detail === 'string' ? detail : detail?.message;
+      throw new ApiServerError(
+        response.status,
+        message || `Backend returned status ${response.status}: ${response.statusText}`
+      );
     }
 
     const json = await response.json();
@@ -207,12 +238,18 @@ export async function analyzeStartup(
   } catch (err: unknown) {
     console.warn('API execution notice:', err);
 
+    if (externalSignal?.aborted) {
+      throw new ApiRequestCancelledError();
+    }
+    if (timedOut || (err as { name?: string }).name === 'AbortError') {
+      throw new ApiTimeoutError(
+        `The analysis service timed out after ${Math.round(settings.timeoutMs / 1000)} seconds.`
+      );
+    }
+
     // If configured in strict API mode, do NOT disguise the error!
     if (settings.mode === 'api') {
-      if (err instanceof ApiTimeoutError || (err as { name?: string }).name === 'AbortError') {
-        throw new ApiTimeoutError('The analysis service timed out (>45s). The multi-agent LLM reasoning pipeline took longer than allowed.');
-      }
-      if (err instanceof ApiMalformedResponseError) {
+      if (err instanceof ApiTimeoutError || err instanceof ApiMalformedResponseError || err instanceof ApiServerError) {
         throw err;
       }
       throw new ApiConnectionError(
@@ -223,6 +260,9 @@ export async function analyzeStartup(
     // In 'auto' mode: warn clearly and fall back to the demo/benchmark mock engine
     console.info('Auto mode: Backend unreachable. Running isolated demonstration mock engine.');
     return runSimulatedPipeline(request, onProgress, 'demo-fallback');
+  } finally {
+    clearTimeout(timer);
+    externalSignal?.removeEventListener('abort', abortFromCaller);
   }
 }
 
@@ -258,7 +298,7 @@ async function runSimulatedPipeline(
     report = {
       ...DEMO_CROP_DRONE_REPORT,
       idea: request.idea,
-      source: 'demo',
+      source: sourceMode,
       created_at: new Date().toISOString()
     };
   } else {
@@ -269,7 +309,7 @@ async function runSimulatedPipeline(
       stage: request.stage,
       budget: request.budget
     });
-    report.source = 'demo';
+    report.source = sourceMode;
   }
 
   return report;

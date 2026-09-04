@@ -1,3 +1,4 @@
+import asyncio
 import os
 import json
 import re
@@ -62,6 +63,51 @@ class LLMProvider:
             raise LLMConfigurationError(f"Unsupported LLM_PROVIDER '{provider}'. Supported: gemini, openai, anthropic, ollama.")
 
     @classmethod
+    async def _post_json(
+        cls,
+        provider_name: str,
+        url: str,
+        payload: Dict[str, Any],
+        headers: Optional[Dict[str, str]] = None,
+        timeout: Optional[float] = None,
+    ):
+        """POST to an LLM provider and normalize transport failures."""
+        import httpx
+
+        request_timeout = timeout or settings.LLM_TIMEOUT_SECONDS
+        attempts = settings.LLM_MAX_RETRIES + 1
+        last_error: Optional[Exception] = None
+
+        for attempt in range(attempts):
+            try:
+                async with httpx.AsyncClient(timeout=request_timeout) as client:
+                    response = await client.post(url, headers=headers, json=payload)
+
+                if response.status_code not in {429, 500, 502, 503, 504} or attempt == attempts - 1:
+                    return response
+
+                retry_after = response.headers.get("Retry-After")
+                delay = float(retry_after) if retry_after and retry_after.isdigit() else 1.5 * (2 ** attempt)
+                await asyncio.sleep(min(delay, 8.0))
+            except (httpx.TimeoutException, httpx.RequestError) as exc:
+                last_error = exc
+                if attempt == attempts - 1:
+                    break
+                await asyncio.sleep(min(1.5 * (2 ** attempt), 8.0))
+
+        if isinstance(last_error, httpx.TimeoutException):
+            raise LLMExecutionError(
+                f"{provider_name} timed out after {request_timeout:g} seconds "
+                f"across {attempts} attempt(s). Retry later or select Demo mode."
+            ) from last_error
+        if last_error is not None:
+            raise LLMExecutionError(
+                f"Could not reach {provider_name} after {attempts} attempt(s): "
+                f"{type(last_error).__name__}. Check the internet connection."
+            ) from last_error
+        raise LLMExecutionError(f"{provider_name} request failed without a response.")
+
+    @classmethod
     async def _call_gemini(cls, prompt: str, system_instruction: Optional[str]) -> Dict[str, Any]:
         api_key = settings.GEMINI_API_KEY
         if not api_key:
@@ -100,20 +146,19 @@ class LLMProvider:
             }
         }
 
-        async with httpx.AsyncClient(timeout=35.0) as client:
-            resp = await client.post(url, json=payload)
-            if resp.status_code != 200:
-                raise LLMExecutionError(f"Gemini API returned status {resp.status_code}: {resp.text}")
+        resp = await cls._post_json("Gemini", url, payload)
+        if resp.status_code != 200:
+            raise LLMExecutionError(f"Gemini API returned status {resp.status_code}: {resp.text}")
 
-            data = resp.json()
-            try:
-                candidates = data.get("candidates", [])
-                if not candidates:
-                    raise LLMExecutionError("Gemini returned empty candidate list.")
-                text_part = candidates[0]["content"]["parts"][0]["text"]
-                return cls.clean_json_response(text_part)
-            except (KeyError, IndexError) as e:
-                raise LLMExecutionError(f"Malformed response structure from Gemini: {str(e)}")
+        data = resp.json()
+        try:
+            candidates = data.get("candidates", [])
+            if not candidates:
+                raise LLMExecutionError("Gemini returned empty candidate list.")
+            text_part = candidates[0]["content"]["parts"][0]["text"]
+            return cls.clean_json_response(text_part)
+        except (KeyError, IndexError) as e:
+            raise LLMExecutionError(f"Malformed response structure from Gemini: {str(e)}")
 
     @classmethod
     async def _call_openai(cls, prompt: str, system_instruction: Optional[str]) -> Dict[str, Any]:
@@ -142,14 +187,13 @@ class LLMProvider:
             "response_format": {"type": "json_object"}
         }
 
-        async with httpx.AsyncClient(timeout=35.0) as client:
-            resp = await client.post(url, headers=headers, json=payload)
-            if resp.status_code != 200:
-                raise LLMExecutionError(f"OpenAI API returned status {resp.status_code}: {resp.text}")
+        resp = await cls._post_json("OpenAI", url, payload, headers=headers)
+        if resp.status_code != 200:
+            raise LLMExecutionError(f"OpenAI API returned status {resp.status_code}: {resp.text}")
 
-            data = resp.json()
-            raw_text = data["choices"][0]["message"]["content"]
-            return cls.clean_json_response(raw_text)
+        data = resp.json()
+        raw_text = data["choices"][0]["message"]["content"]
+        return cls.clean_json_response(raw_text)
 
     @classmethod
     async def _call_anthropic(cls, prompt: str, system_instruction: Optional[str]) -> Dict[str, Any]:
@@ -176,14 +220,13 @@ class LLMProvider:
             "temperature": 0.3
         }
 
-        async with httpx.AsyncClient(timeout=40.0) as client:
-            resp = await client.post(url, headers=headers, json=payload)
-            if resp.status_code != 200:
-                raise LLMExecutionError(f"Anthropic API returned status {resp.status_code}: {resp.text}")
+        resp = await cls._post_json("Anthropic", url, payload, headers=headers)
+        if resp.status_code != 200:
+            raise LLMExecutionError(f"Anthropic API returned status {resp.status_code}: {resp.text}")
 
-            data = resp.json()
-            raw_text = data["content"][0]["text"]
-            return cls.clean_json_response(raw_text)
+        data = resp.json()
+        raw_text = data["content"][0]["text"]
+        return cls.clean_json_response(raw_text)
 
     @classmethod
     async def _call_ollama(cls, prompt: str, system_instruction: Optional[str]) -> Dict[str, Any]:
@@ -205,11 +248,10 @@ class LLMProvider:
             "stream": False
         }
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(url, json=payload)
-            if resp.status_code != 200:
-                raise LLMExecutionError(f"Ollama returned status {resp.status_code}: {resp.text}")
+        resp = await cls._post_json("Ollama", url, payload)
+        if resp.status_code != 200:
+            raise LLMExecutionError(f"Ollama returned status {resp.status_code}: {resp.text}")
 
-            data = resp.json()
-            raw_text = data["message"]["content"]
-            return cls.clean_json_response(raw_text)
+        data = resp.json()
+        raw_text = data["message"]["content"]
+        return cls.clean_json_response(raw_text)

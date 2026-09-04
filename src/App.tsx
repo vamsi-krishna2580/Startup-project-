@@ -18,7 +18,7 @@ import { AnalyzeStartupRequest } from './types/startup';
 export default function App() {
   const [currentTab, setCurrentTab] = useState<'home' | 'analyze' | 'results' | 'history' | 'architecture'>('home');
   const [isBackendModalOpen, setIsBackendModalOpen] = useState(false);
-  const [pendingIdea, setPendingIdea] = useState<string>('');
+  const [pendingRequest, setPendingRequest] = useState<AnalyzeStartupRequest | null>(null);
 
   const {
     currentReport,
@@ -33,11 +33,12 @@ export default function App() {
     loadFromHistory,
     deleteFromHistory,
     clearHistory,
-    resetAnalysis
+    resetAnalysis,
+    cancelAnalysis
   } = useStartupAnalysis();
 
   const handleStartAnalysis = async (request: AnalyzeStartupRequest) => {
-    setPendingIdea(request.idea);
+    setPendingRequest(request);
     const success = await startAnalysis(request);
     if (success) {
       setCurrentTab('results');
@@ -78,14 +79,14 @@ export default function App() {
             elapsedSeconds={elapsedSeconds}
             isLoading={isLoading}
             error={error}
-            idea={pendingIdea || 'Analyzing startup concept...'}
+            idea={pendingRequest?.idea || 'Analyzing startup concept...'}
             onRetry={() => {
-              if (pendingIdea) {
-                handleStartAnalysis({ idea: pendingIdea });
+              if (pendingRequest) {
+                handleStartAnalysis(pendingRequest);
               }
             }}
             onCancel={() => {
-              resetAnalysis();
+              cancelAnalysis();
               setCurrentTab('analyze');
             }}
           />

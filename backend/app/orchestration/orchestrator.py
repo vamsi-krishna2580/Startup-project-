@@ -1,5 +1,5 @@
+import asyncio
 import uuid
-from datetime import datetime
 from typing import Dict, Any, Optional, Callable
 from .state import InvestigationState
 from .actions import ActionType
@@ -7,6 +7,7 @@ from .planner import InvestigationPlanner
 from .executor import ActionExecutor
 from ..schemas.startup import StartupReport, AnalyzeStartupRequest
 from ..services.persistence import PersistenceService
+from ..utils.time import utc_now_iso
 
 class MultiAgentOrchestrator:
     """
@@ -51,10 +52,10 @@ class MultiAgentOrchestrator:
         while state.iteration < state.max_iterations:
             state.iteration += 1
 
-            # Planner selects the next optimal action based on current state
-            action = self.planner.plan_next_action(state)
+            # Planner selects all actions that are safe to execute concurrently.
+            actions = self.planner.plan_ready_actions(state)
 
-            if action.action_type == ActionType.FINALIZE_REPORT:
+            if actions[0].action_type == ActionType.FINALIZE_REPORT:
                 state.record_event(
                     agent="system_orchestrator",
                     stage=5,
@@ -63,33 +64,36 @@ class MultiAgentOrchestrator:
                 )
                 break
 
-            # Execute action
-            state.record_event(
-                agent=action.agent_name,
-                stage=action.stage,
-                event_type="action_dispatched",
-                message=f"Dispatching action: {action.action_type.value}. Rationale: {action.reasoning}",
-                details={"reasoning": action.reasoning}
-            )
-
-            try:
-                output = await self.executor.execute(action, state)
-            except Exception as e:
+            for action in actions:
                 state.record_event(
                     agent=action.agent_name,
                     stage=action.stage,
-                    event_type="action_failed",
-                    message=f"Action execution error: {str(e)}",
-                    status="failed"
+                    event_type="action_dispatched",
+                    message=f"Dispatching action: {action.action_type.value}. Rationale: {action.reasoning}",
+                    details={"reasoning": action.reasoning},
                 )
-                raise e
+
+            results = await asyncio.gather(
+                *(self.executor.execute(action, state) for action in actions),
+                return_exceptions=True,
+            )
+            for action, result in zip(actions, results):
+                if isinstance(result, BaseException):
+                    state.record_event(
+                        agent=action.agent_name,
+                        stage=action.stage,
+                        event_type="action_failed",
+                        message=f"Action execution error: {result}",
+                        status="failed",
+                    )
+                    raise result
 
         # Compile final StartupReport strictly matching frontend interface
         outputs = state.agent_outputs
         final_report_data = {
             "id": f"rep-{investigation_id}",
             "idea": request.idea,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": utc_now_iso(),
             "startup_analysis": outputs.get("startup_analyst"),
             "market_research": outputs.get("market_researcher"),
             "business_strategy": outputs.get("business_strategist"),
@@ -109,7 +113,7 @@ class MultiAgentOrchestrator:
         state.status = "completed"
 
         # Persist final state and report in SQLite
-        PersistenceService.save_investigation_state(state, final_report=report.dict())
+        PersistenceService.save_investigation_state(state, final_report=report.model_dump())
 
         return report
 

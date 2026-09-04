@@ -1,6 +1,6 @@
-from datetime import datetime
 from sqlalchemy import Column, String, Text, Integer, DateTime, JSON, ForeignKey
 from .database import Base
+from ..utils.time import utc_now
 
 class AgentEventModel(Base):
     __tablename__ = "agent_events"
@@ -14,4 +14,4 @@ class AgentEventModel(Base):
     status = Column(String(32), default="completed")
     tool_name = Column(String(64), nullable=True)
     details = Column(JSON, nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    timestamp = Column(DateTime, default=utc_now, index=True)

@@ -1,6 +1,6 @@
-from datetime import datetime
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey
 from .database import Base
+from ..utils.time import utc_now
 
 class ContradictionModel(Base):
     __tablename__ = "contradictions"
@@ -14,4 +14,4 @@ class ContradictionModel(Base):
     severity = Column(String(32), default="medium")  # low, medium, high, critical
     resolution = Column(Text, nullable=True)
     status = Column(String(32), default="open")  # open, resolved, accepted_risk
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)

@@ -1,6 +1,6 @@
-from datetime import datetime
 from sqlalchemy import Column, String, Text, Float, DateTime, JSON, ForeignKey
 from .database import Base
+from ..utils.time import utc_now
 
 class DecisionModel(Base):
     __tablename__ = "decisions"
@@ -13,4 +13,4 @@ class DecisionModel(Base):
     confidence = Column(Float, default=0.8)
     risks = Column(JSON, default=list)
     unresolved_questions = Column(JSON, default=list)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)

@@ -1,6 +1,6 @@
-from datetime import datetime
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey
 from .database import Base
+from ..utils.time import utc_now
 
 class ExperimentModel(Base):
     __tablename__ = "experiments"
@@ -13,4 +13,4 @@ class ExperimentModel(Base):
     success_criteria = Column(Text, nullable=False)
     expected_result = Column(Text, nullable=False)
     status = Column(String(32), default="planned")  # planned, running, completed, inconclusive
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)

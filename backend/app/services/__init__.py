@@ -1,11 +1,8 @@
-from .llm_provider import LLMProvider, LLMConfigurationError, LLMExecutionError
-from .persistence import PersistenceService
-from .report_generator import ReportGeneratorService
+"""Backend service implementations.
 
-__all__ = [
-    "LLMProvider",
-    "LLMConfigurationError",
-    "LLMExecutionError",
-    "PersistenceService",
-    "ReportGeneratorService"
-]
+Keep this package initializer deliberately lightweight. Eager imports here used to
+create a cycle between ``services.persistence`` and ``orchestration`` that made
+otherwise valid direct imports fail depending on module import order.
+"""
+
+__all__: list[str] = []

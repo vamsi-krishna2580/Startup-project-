@@ -1,6 +1,6 @@
-from datetime import datetime
 from sqlalchemy import Column, String, Text, Float, DateTime, JSON, ForeignKey
 from .database import Base
+from ..utils.time import utc_now
 
 class ClaimModel(Base):
     __tablename__ = "claims"
@@ -13,5 +13,5 @@ class ClaimModel(Base):
     status = Column(String(64), default="proposed")  # proposed, supported, weakly_supported, contradicted, rejected, assumption
     evidence_ids = Column(JSON, default=list)  # List of related evidence IDs
     source_agent = Column(String(64), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)

@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
@@ -133,9 +134,10 @@ class PersistenceService:
                     ))
 
             db.commit()
-        except Exception as e:
+        except Exception:
             db.rollback()
-            print(f"Warning: Failed to persist investigation state: {e}")
+            logging.getLogger(__name__).exception("Failed to persist investigation state")
+            raise
         finally:
             db.close()
 

@@ -24,6 +24,8 @@ class Settings:
     # LLM Settings
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "gemini").lower()
     LLM_MODEL: str = os.getenv("LLM_MODEL", "gemini-2.5-flash")
+    LLM_TIMEOUT_SECONDS: float = float(os.getenv("LLM_TIMEOUT_SECONDS", "90"))
+    LLM_MAX_RETRIES: int = max(0, int(os.getenv("LLM_MAX_RETRIES", "2")))
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")

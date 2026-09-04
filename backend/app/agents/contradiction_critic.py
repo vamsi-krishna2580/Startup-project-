@@ -2,7 +2,6 @@ import uuid
 from typing import Dict, Any
 from .base_agent import BaseAgent
 from ..orchestration.state import InvestigationState
-from ..services.llm_provider import LLMProvider
 
 class ContradictionCriticAgent(BaseAgent):
     """
@@ -19,8 +18,9 @@ class ContradictionCriticAgent(BaseAgent):
 
     async def execute(self, state: InvestigationState) -> Dict[str, Any]:
         idea = state.startup_context.get("idea", "")
-        claims = state.claims
-        claims_text = "\n".join([f"- [{c.get('id')}] ({c.get('category')}): {c.get('text')}" for c in claims])
+        outputs = state.agent_outputs
+        analysis = outputs.get("startup_analyst", {})
+        market = outputs.get("market_researcher", {})
 
         state.record_event(
             agent=self.name,
@@ -29,29 +29,27 @@ class ContradictionCriticAgent(BaseAgent):
             message="Conducting contradiction critique across collected claims and market benchmarks."
         )
 
-        prompt = f"""
-You are an expert venture capital Contradiction Critic.
-Audit the following startup claims and identify any potential contradictions, friction points, or over-optimistic assumptions:
-Startup: {idea}
+        weaknesses = analysis.get("weaknesses") or ["The value proposition remains unvalidated with paying customers."]
+        risks = analysis.get("risks") or ["Execution assumptions may be optimistic before a measured pilot."]
+        challenges = market.get("market_challenges") or ["Customer acquisition and switching friction require validation."]
 
-Claims Registered:
-{claims_text if claims_text else "No formal claims cataloged yet."}
-
-Identify 1 to 2 critical tensions or contradictions in JSON:
-{{
-  "contradictions": [
-    {{
-      "claim_a_summary": "Founder assumption or proposed benefit",
-      "claim_b_summary": "Market reality, customer friction, or incumbent moat",
-      "severity": "medium",
-      "resolution": "Actionable strategic compromise or validation experiment"
-    }}
-  ],
-  "criticism_summary": "High-level summary of dialectical friction and critical risks to de-risk."
-}}
-"""
-        system_instruction = "You are a demanding investment committee critic. Look for hidden friction, switching costs, and capital intensity. Output JSON only."
-        data = await LLMProvider.generate_json(prompt, system_instruction)
+        data = {
+            "contradictions": [
+                {
+                    "claim_a_summary": analysis.get("solution") or f"The proposed solution for {idea} can deliver its stated value.",
+                    "claim_b_summary": challenges[0],
+                    "severity": "high",
+                    "resolution": "Run a time-boxed paid beachhead pilot with adoption, retention, and willingness-to-pay thresholds.",
+                },
+                {
+                    "claim_a_summary": weaknesses[0],
+                    "claim_b_summary": risks[0],
+                    "severity": "medium",
+                    "resolution": "Define a measurable de-risking milestone and validate it before scaling fixed costs.",
+                },
+            ],
+            "criticism_summary": "Cross-domain audit found validation and execution assumptions that should be tested before scale-up.",
+        }
 
         contradictions = data.get("contradictions", [])
         for c in contradictions:

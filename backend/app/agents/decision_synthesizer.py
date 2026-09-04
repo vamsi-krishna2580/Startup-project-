@@ -1,8 +1,8 @@
 import uuid
-from datetime import datetime
 from typing import Dict, Any
 from .base_agent import BaseAgent
 from ..orchestration.state import InvestigationState
+from ..utils.time import utc_now_iso
 
 class DecisionSynthesizerAgent(BaseAgent):
     """
@@ -50,7 +50,7 @@ class DecisionSynthesizerAgent(BaseAgent):
                 "How will the team defend against incumbent platform feature commoditization over a 24-month horizon?",
                 "What are the primary regulatory or data security certifications required for enterprise procurement?"
             ],
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": utc_now_iso()
         }
 
         state.add_decision(decision_record)

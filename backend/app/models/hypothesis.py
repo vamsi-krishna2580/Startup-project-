@@ -1,6 +1,6 @@
-from datetime import datetime
 from sqlalchemy import Column, String, Text, Float, DateTime, JSON, ForeignKey
 from .database import Base
+from ..utils.time import utc_now
 
 class HypothesisModel(Base):
     __tablename__ = "hypotheses"
@@ -13,4 +13,4 @@ class HypothesisModel(Base):
     related_claim_ids = Column(JSON, default=list)
     status = Column(String(64), default="pending")  # pending, validated, refuted, tested
     validation_method = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)

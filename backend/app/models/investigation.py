@@ -1,6 +1,6 @@
-from datetime import datetime
 from sqlalchemy import Column, String, Text, DateTime, JSON
 from .database import Base
+from ..utils.time import utc_now
 
 class InvestigationModel(Base):
     __tablename__ = "investigations"
@@ -20,5 +20,5 @@ class InvestigationModel(Base):
     # Detailed orchestration state metadata
     orchestration_metadata = Column(JSON, nullable=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)

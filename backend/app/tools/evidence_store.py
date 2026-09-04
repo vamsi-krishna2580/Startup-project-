@@ -1,6 +1,6 @@
 import uuid
-from datetime import datetime
 from typing import List, Dict, Any, Optional
+from ..utils.time import utc_now_iso
 
 class EvidenceStoreTool:
     """
@@ -32,7 +32,7 @@ class EvidenceStoreTool:
             "content": content,
             "url": url,
             "reliability": max(0.0, min(1.0, reliability)),
-            "retrieved_at": datetime.utcnow().isoformat(),
+            "retrieved_at": utc_now_iso(),
             "agent_id": agent_id,
             "related_claim_ids": related_claim_ids or []
         }
