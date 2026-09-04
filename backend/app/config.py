@@ -23,9 +23,14 @@ class Settings:
 
     # LLM Settings
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "gemini").lower()
-    LLM_MODEL: str = os.getenv("LLM_MODEL", "gemini-2.5-flash")
-    LLM_TIMEOUT_SECONDS: float = float(os.getenv("LLM_TIMEOUT_SECONDS", "90"))
-    LLM_MAX_RETRIES: int = max(0, int(os.getenv("LLM_MAX_RETRIES", "2")))
+    # Provider-specific model names avoid accidentally sending a Gemini model
+    # name to Ollama (or vice versa) when switching presentation providers.
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", os.getenv("LLM_MODEL", "gemini-3.1-flash-lite"))
+    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
+    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+    LLM_TIMEOUT_SECONDS: float = float(os.getenv("LLM_TIMEOUT_SECONDS", "45"))
+    LLM_MAX_RETRIES: int = max(0, int(os.getenv("LLM_MAX_RETRIES", "1")))
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
@@ -42,6 +47,16 @@ class Settings:
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", "8000"))
     DEBUG: bool = os.getenv("DEBUG", "true").lower() in ("true", "1", "yes")
+
+    @property
+    def active_llm_model(self) -> str:
+        return {
+            "gemini": self.GEMINI_MODEL,
+            "openai": self.OPENAI_MODEL,
+            "openai-compatible": self.OPENAI_MODEL,
+            "anthropic": self.ANTHROPIC_MODEL,
+            "ollama": self.OLLAMA_MODEL,
+        }.get(self.LLM_PROVIDER, "unknown")
 
     @property
     def cors_origins(self) -> List[str]:

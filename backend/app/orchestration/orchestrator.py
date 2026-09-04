@@ -7,6 +7,8 @@ from .planner import InvestigationPlanner
 from .executor import ActionExecutor
 from ..schemas.startup import StartupReport, AnalyzeStartupRequest
 from ..services.persistence import PersistenceService
+from ..services.fallback_analysis import FallbackAnalysisService
+from ..services.llm_provider import LLMConfigurationError, LLMExecutionError
 from ..utils.time import utc_now_iso
 
 class MultiAgentOrchestrator:
@@ -86,6 +88,20 @@ class MultiAgentOrchestrator:
                         message=f"Action execution error: {result}",
                         status="failed",
                     )
+                    if isinstance(result, (LLMConfigurationError, LLMExecutionError)):
+                        fallback = FallbackAnalysisService.build(action.agent_name, state.startup_context)
+                        state.agent_outputs[action.agent_name] = fallback
+                        state.completed_actions.append(action.action_type.value)
+                        state.fallback_agents.append(action.agent_name)
+                        state.record_event(
+                            agent=action.agent_name,
+                            stage=action.stage,
+                            event_type="provider_fallback",
+                            message="External model unavailable; completed this stage with the deterministic baseline engine.",
+                            status="completed",
+                            details={"provider_error": str(result)},
+                        )
+                        continue
                     raise result
 
         # Compile final StartupReport strictly matching frontend interface
@@ -99,7 +115,7 @@ class MultiAgentOrchestrator:
             "business_strategy": outputs.get("business_strategist"),
             "financial_plan": outputs.get("financial_planner"),
             "investment_report": outputs.get("investment_advisor"),
-            "source": "api",
+            "source": "api-fallback" if state.fallback_agents else "api",
             "optional_inputs": {
                 "industry": request.industry,
                 "target_customer": request.target_customer,

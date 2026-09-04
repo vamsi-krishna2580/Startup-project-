@@ -3,6 +3,7 @@ import os
 import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock
+import pytest
 
 TEST_DB = Path(tempfile.gettempdir()) / f"startup-validator-tests-{os.getpid()}.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB.as_posix()}"
@@ -12,6 +13,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.database import engine
+from app.config import settings
 from app.services.llm_provider import LLMExecutionError, LLMProvider
 
 
@@ -124,7 +126,7 @@ def test_analysis_runs_agents_concurrently_and_persists(monkeypatch):
         assert report["source"] == "api"
         assert report["startup_analysis"]["opportunity_score"] > 0
         assert report["investment_report"]["investment_readiness_score"] > 0
-        assert maximum_active == 5
+        assert maximum_active == 4
 
         investigation_id = report["id"].replace("rep-", "")
         assert client.get(f"/api/startup/{investigation_id}").status_code == 200
@@ -136,7 +138,7 @@ def test_analysis_runs_agents_concurrently_and_persists(monkeypatch):
         assert len({event["id"] for event in events}) == len(events)
 
 
-def test_provider_failure_returns_actionable_502(monkeypatch):
+def test_provider_failure_returns_complete_labeled_fallback(monkeypatch):
     monkeypatch.setattr(
         LLMProvider,
         "generate_json",
@@ -149,11 +151,45 @@ def test_provider_failure_returns_actionable_502(monkeypatch):
             json={"idea": "AI scheduling assistant for independent clinics"},
         )
 
-    assert response.status_code == 502
-    assert response.json()["detail"] == {
-        "error": "LLM_EXECUTION_ERROR",
-        "message": "Gemini timed out after 90 seconds.",
-    }
+    assert response.status_code == 200
+    assert response.json()["source"] == "api-fallback"
+    assert response.json()["startup_analysis"]["opportunity_score"] == 68
+
+
+@pytest.mark.asyncio
+async def test_ollama_ngrok_adapter_is_provider_independent(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        status_code = 200
+        text = ""
+
+        @staticmethod
+        def json():
+            return {"message": {"content": '{"ollama": "working"}'}}
+
+    async def fake_post(provider_name, url, payload, headers=None, timeout=None):
+        captured.update({
+            "provider": provider_name,
+            "url": url,
+            "payload": payload,
+            "headers": headers,
+        })
+        return FakeResponse()
+
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "ollama")
+    monkeypatch.setattr(settings, "OLLAMA_BASE_URL", "https://example.ngrok-free.app/")
+    monkeypatch.setattr(settings, "OLLAMA_MODEL", "llama3.1:8b")
+    monkeypatch.setattr(LLMProvider, "_post_json", fake_post)
+
+    result = await LLMProvider.generate_json("Return JSON", "System instruction")
+
+    assert result == {"ollama": "working"}
+    assert captured["provider"] == "Ollama"
+    assert captured["url"] == "https://example.ngrok-free.app/api/chat"
+    assert captured["payload"]["model"] == "llama3.1:8b"
+    assert captured["payload"]["format"] == "json"
+    assert captured["headers"]["ngrok-skip-browser-warning"] == "true"
 
 
 def teardown_module():

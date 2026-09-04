@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StartupReport } from '../types/startup';
-import { X, Printer, Download, Sparkles, Presentation } from 'lucide-react';
+import { X, Download, Loader2, Presentation, AlertCircle } from 'lucide-react';
+import { generateStartupReportPdf } from '../utils/pdfReport';
 
 interface PdfExportPreviewModalProps {
   isOpen: boolean;
@@ -13,10 +14,20 @@ export const PdfExportPreviewModal: React.FC<PdfExportPreviewModalProps> = ({
   onClose,
   report
 }) => {
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState('');
   if (!isOpen) return null;
 
-  const handlePrint = () => {
-    window.print();
+  const handleDownload = async () => {
+    setIsGenerating(true);
+    setError('');
+    try {
+      await generateStartupReportPdf(report);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to generate the PDF report.');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -45,21 +56,31 @@ export const PdfExportPreviewModal: React.FC<PdfExportPreviewModalProps> = ({
           <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <Printer className="w-4 h-4 text-indigo-600" />
-                <h4 className="font-bold text-slate-900 text-sm">Printable Executive Summary (PDF)</h4>
+                <Download className="w-4 h-4 text-indigo-600" />
+                <h4 className="font-bold text-slate-900 text-sm">Complete Validation Report (PDF)</h4>
               </div>
               <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                Formats the 5-agent consolidated report into clean high-contrast pages optimized for standard browser "Save as PDF" printing.
+                Downloads a formatted multi-page dossier containing all five analysis sections, scores, SWOT, financials, and pitch outline.
               </p>
             </div>
             <button
               id="btn-print-executive-pdf"
-              onClick={handlePrint}
+              onClick={handleDownload}
+              disabled={isGenerating}
               className="shrink-0 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold transition-colors cursor-pointer"
             >
-              Print / Save PDF
+              {isGenerating ? (
+                <span className="flex items-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating...</span>
+              ) : 'Download PDF'}
             </button>
           </div>
+
+          {error && (
+            <div className="p-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
 
           {/* Pitch Deck Generator Extension Point */}
           <div className="p-4 rounded-xl border border-slate-200 bg-white flex items-start justify-between gap-4">

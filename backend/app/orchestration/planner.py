@@ -13,9 +13,9 @@ class InvestigationPlanner:
     def plan_ready_actions(state: InvestigationState) -> List[AgentAction]:
         """Return every action whose inputs are currently available.
 
-        The five report-producing agents depend only on the founder context, so
-        they can safely run together. Critique waits for those findings, and the
-        final deterministic decision waits for the critique.
+        Four research agents depend only on founder context and run together.
+        Critique and investment synthesis then consume their findings without
+        additional provider calls, followed by the final decision.
         """
         outputs = state.agent_outputs
         completed = state.completed_actions
@@ -45,12 +45,6 @@ class InvestigationPlanner:
                 stage=4,
                 reasoning="Model burn, break-even, runway capital, and four-year projections.",
             ),
-            AgentAction(
-                action_type=ActionType.SYNTHESIZE_INVESTMENT_REPORT,
-                agent_name="investment_advisor",
-                stage=5,
-                reasoning="Evaluate readiness, SWOT, funding-stage fit, and pitch-deck structure.",
-            ),
         ]
         ready_core = [
             action for action in core_actions
@@ -59,14 +53,26 @@ class InvestigationPlanner:
         if ready_core:
             return ready_core
 
-        # Inspect the complete report findings for cross-domain contradictions.
-        if "contradiction_critic" not in outputs and ActionType.CRITIQUE_CONTRADICTIONS.value not in completed:
-            return [AgentAction(
+        synthesis_actions = [
+            AgentAction(
                 action_type=ActionType.CRITIQUE_CONTRADICTIONS,
                 agent_name="contradiction_critic",
                 stage=2,
-                reasoning="Critical audit required: detect friction between founder assertions, competitor defensibility, and market realities."
-            )]
+                reasoning="Detect friction between founder assertions, competitor defensibility, and market realities.",
+            ),
+            AgentAction(
+                action_type=ActionType.SYNTHESIZE_INVESTMENT_REPORT,
+                agent_name="investment_advisor",
+                stage=5,
+                reasoning="Synthesize readiness, SWOT, funding-stage fit, and pitch structure from completed findings.",
+            ),
+        ]
+        ready_synthesis = [
+            action for action in synthesis_actions
+            if action.agent_name not in outputs and action.action_type.value not in completed
+        ]
+        if ready_synthesis:
+            return ready_synthesis
 
         # Deterministic final decision uses all completed outputs.
         if "decision_synthesizer" not in outputs and ActionType.SYNTHESIZE_DECISION.value not in completed:

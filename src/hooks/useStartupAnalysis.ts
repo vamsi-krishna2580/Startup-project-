@@ -12,6 +12,26 @@ import { INITIAL_AGENT_STAGES } from '../utils/formatters';
 
 const STORAGE_KEY_HISTORY = 'ai_startup_validator_history';
 
+function normalizeHistoryItem(value: unknown): AnalysisHistoryItem | null {
+  if (!value || typeof value !== 'object') return null;
+  const item = value as Partial<AnalysisHistoryItem>;
+  if (!item.report || !item.idea || !item.report.startup_analysis || !item.report.investment_report) return null;
+  const timestamp = item.createdAt || item.date || item.report.created_at || new Date().toISOString();
+  return {
+    ...item,
+    id: item.id || item.report.id || `hist-${Date.now()}`,
+    idea: item.idea,
+    opportunity_score: item.opportunity_score ?? item.report.startup_analysis.opportunity_score,
+    investment_readiness_score: item.investment_readiness_score ?? item.report.investment_report.investment_readiness_score,
+    verdict: item.verdict || item.report.startup_analysis.verdict,
+    funding_stage: item.funding_stage || item.report.investment_report.recommended_funding_stage,
+    date: timestamp,
+    createdAt: timestamp,
+    status: item.status || 'completed',
+    report: item.report,
+  };
+}
+
 export function useStartupAnalysis() {
   const [report, setReport] = useState<StartupReport | null>(null);
   const [stages, setStages] = useState<AgentStageInfo[]>(INITIAL_AGENT_STAGES);
@@ -32,7 +52,9 @@ export function useStartupAnalysis() {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
-          setHistory(parsed);
+          const normalized = parsed.map(normalizeHistoryItem).filter((item): item is AnalysisHistoryItem => item !== null);
+          setHistory(normalized);
+          localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(normalized));
         }
       }
     } catch (e) {
@@ -51,6 +73,8 @@ export function useStartupAnalysis() {
         verdict: newReport.startup_analysis.verdict,
         funding_stage: newReport.investment_report.recommended_funding_stage,
         date: newReport.created_at || new Date().toISOString(),
+        createdAt: newReport.created_at || new Date().toISOString(),
+        status: 'completed',
         report: newReport
       };
 

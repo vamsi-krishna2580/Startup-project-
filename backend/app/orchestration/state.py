@@ -24,6 +24,7 @@ class InvestigationState:
         
         # Structured agent outputs
         self.agent_outputs: Dict[str, Any] = {}
+        self.fallback_agents: List[str] = []
         
         # Cycle tracking
         self.iteration: int = 0
@@ -86,6 +87,7 @@ class InvestigationState:
             "experiments_count": len(self.experiments),
             "decisions_count": len(self.decisions),
             "events_count": len(self.events),
+            "fallback_agents": self.fallback_agents,
             "claims": self.claims,
             "evidence": self.evidence,
             "hypotheses": self.hypotheses,

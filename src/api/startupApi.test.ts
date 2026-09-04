@@ -30,7 +30,7 @@ describe('startup API client', () => {
   it('accepts a valid backend report', async () => {
     storage.set('ai_startup_validator_api_mode', 'api');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(MOCK_BENCHMARK_REPORT), {
+      new Response(JSON.stringify({ ...MOCK_BENCHMARK_REPORT, source: 'api' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       }),
@@ -41,6 +41,20 @@ describe('startup API client', () => {
     expect(report.source).toBe('api');
     expect(report.startup_analysis).toBeTruthy();
     expect(report.investment_report).toBeTruthy();
+  });
+
+  it('preserves an honest backend fallback source label', async () => {
+    storage.set('ai_startup_validator_api_mode', 'api');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ...MOCK_BENCHMARK_REPORT, source: 'api-fallback' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    ));
+
+    const report = await analyzeStartup({ idea: 'A sufficiently detailed startup concept' });
+
+    expect(report.source).toBe('api-fallback');
   });
 
   it('preserves useful backend error messages in strict API mode', async () => {

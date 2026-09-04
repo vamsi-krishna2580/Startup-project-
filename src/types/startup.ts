@@ -100,7 +100,7 @@ export interface StartupReport {
   business_strategy: BusinessStrategy;
   financial_plan: FinancialPlan;
   investment_report: InvestmentReport;
-  source?: 'api' | 'demo' | 'demo-fallback';
+  source?: 'api' | 'api-fallback' | 'demo' | 'demo-fallback';
   optional_inputs?: {
     industry?: string;
     target_customer?: string;

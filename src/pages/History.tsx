@@ -93,6 +93,9 @@ export const History: React.FC<HistoryProps> = ({
           {items.map((item) => {
             const oppScore = item.report.startup_analysis.opportunity_score;
             const invScore = item.report.investment_report.investment_readiness_score;
+            const createdAt = item.createdAt || item.date;
+            const status = item.status || 'completed';
+            const industry = item.report.optional_inputs?.industry;
 
             return (
               <div
@@ -103,15 +106,15 @@ export const History: React.FC<HistoryProps> = ({
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="flex items-center gap-1 text-slate-400 font-mono text-[11px]">
                       <Calendar className="w-3.5 h-3.5" />
-                      {formatDate(item.createdAt)}
+                      {formatDate(createdAt)}
                     </span>
                     <span className="text-slate-300">•</span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                      {item.status.toUpperCase()}
+                      {status.toUpperCase()}
                     </span>
-                    {item.report.industry && (
+                    {industry && (
                       <span className="px-2 py-0.5 rounded-md text-[10px] font-mono bg-slate-100 text-slate-600">
-                        {item.report.industry}
+                        {industry}
                       </span>
                     )}
                   </div>
@@ -144,6 +147,7 @@ export const History: React.FC<HistoryProps> = ({
                 {/* Actions */}
                 <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                   <button
+                    id={`btn-view-history-${item.id}`}
                     onClick={() => onSelectReport(item.id)}
                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors shadow-2xs cursor-pointer"
                   >

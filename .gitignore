@@ -4,5 +4,10 @@ dist/
 coverage/
 .DS_Store
 *.log
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+backend/startup_investigations.db
 .env*
 !.env.example

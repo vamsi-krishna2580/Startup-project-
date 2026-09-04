@@ -230,7 +230,7 @@ export async function analyzeStartup(
       ...json,
       id: json.id || `api-${Date.now()}`,
       created_at: json.created_at || new Date().toISOString(),
-      source: 'api'
+      source: json.source || 'api'
     };
 
     return finalReport;
@@ -241,16 +241,16 @@ export async function analyzeStartup(
     if (externalSignal?.aborted) {
       throw new ApiRequestCancelledError();
     }
-    if (timedOut || (err as { name?: string }).name === 'AbortError') {
-      throw new ApiTimeoutError(
+    const requestError = timedOut || (err as { name?: string } | null)?.name === 'AbortError'
+      ? new ApiTimeoutError(
         `The analysis service timed out after ${Math.round(settings.timeoutMs / 1000)} seconds.`
-      );
-    }
+      )
+      : err;
 
     // If configured in strict API mode, do NOT disguise the error!
     if (settings.mode === 'api') {
-      if (err instanceof ApiTimeoutError || err instanceof ApiMalformedResponseError || err instanceof ApiServerError) {
-        throw err;
+      if (requestError instanceof ApiTimeoutError || requestError instanceof ApiMalformedResponseError || requestError instanceof ApiServerError) {
+        throw requestError;
       }
       throw new ApiConnectionError(
         `Unable to connect to the analysis service at ${baseUrl}. Ensure your FastAPI server is running with CORS enabled (e.g. uvicorn main:app --reload --port 8000).`

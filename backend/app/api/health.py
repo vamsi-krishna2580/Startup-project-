@@ -15,7 +15,7 @@ async def health_check():
         "service": settings.PROJECT_NAME,
         "version": settings.VERSION,
         "llm_provider": settings.LLM_PROVIDER,
-        "llm_model": settings.LLM_MODEL,
+        "llm_model": settings.active_llm_model,
         "llm_configured": bool(
             settings.GEMINI_API_KEY if settings.LLM_PROVIDER == "gemini"
             else settings.OPENAI_API_KEY if settings.LLM_PROVIDER in ("openai", "openai-compatible")

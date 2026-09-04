@@ -1,7 +1,6 @@
 from typing import Dict, Any
 from .base_agent import BaseAgent
 from ..orchestration.state import InvestigationState
-from ..services.llm_provider import LLMProvider
 from ..tools.scoring import ScoringTool
 from ..tools.claim_manager import ClaimManagerTool
 
@@ -31,46 +30,50 @@ class InvestmentAdvisorAgent(BaseAgent):
             message=f"Conducting investment committee review and readiness audit for {industry}."
         )
 
-        prompt = f"""
-You are an expert venture capital General Partner and Investment Committee Chair.
-Conduct an investment evaluation for:
-Startup Idea: {idea}
-Industry: {industry}
-Stated Stage: {stage_pref}
+        analysis = state.agent_outputs.get("startup_analyst", {})
+        market = state.agent_outputs.get("market_researcher", {})
+        strategy = state.agent_outputs.get("business_strategist", {})
+        financials = state.agent_outputs.get("financial_planner", {})
+        opportunity_score = float(analysis.get("opportunity_score", 70))
+        normalized_score = max(1.0, min(10.0, opportunity_score / 10.0))
 
-Provide an institutional investment report in JSON strictly matching this schema:
-{{
-  "executive_summary": "Comprehensive executive summary for venture investors (3-4 sentences)",
-  "elevator_pitch": "High-impact, concise 30-second elevator pitch",
-  "swot": {{
-    "strengths": ["Institutional strength 1", "Strength 2", "Strength 3", "Strength 4"],
-    "weaknesses": ["Vulnerability 1", "Weakness 2", "Weakness 3"],
-    "opportunities": ["Growth opportunity 1", "Opportunity 2", "Opportunity 3"],
-    "threats": ["Competitive or market threat 1", "Threat 2", "Threat 3"]
-  }},
-  "pitch_deck_outline": [
-    "Problem: The critical industry pain point and cost of inaction",
-    "Solution: Technical architecture and proprietary differentiation",
-    "Market Size: TAM, SAM, and Beachhead expansion potential",
-    "Product: Live platform walkthrough and high-conversion features",
-    "Business Model: Pricing tiers, unit margins, and expansion mechanics",
-    "Traction & Pilots: Validation metrics, pipeline, and early benchmarks",
-    "Competitive Moat: Defensibility matrix and switching cost barriers",
-    "Go-To-Market: Channel economics, customer acquisition, and partner network",
-    "Financial Plan: 4-year projection model and break-even horizon",
-    "The Team: Founder domain expertise and advisory pedigree",
-    "The Ask: Capital requirement, milestone targets, and 18-month runway",
-    "Vision: Long-term platform category dominance"
-  ],
-  "unit_economics_score": 8.0,
-  "execution_feasibility_score": 7.5,
-  "defensibility_moat_score": 7.0,
-  "traction_evidence_score": 7.0,
-  "market_tailwinds_score": 8.5
-}}
-"""
-        system_instruction = "You are a seasoned venture capital GP. Provide a rigorous, institutional evaluation. Output JSON only."
-        data = await LLMProvider.generate_json(prompt, system_instruction)
+        data = {
+            "executive_summary": (
+                f"{analysis.get('summary', idea)} The addressable market is assessed as "
+                f"{market.get('market_size', 'requiring validation')}. The proposed "
+                f"{strategy.get('business_model', 'business model')} targets {industry}, with "
+                f"an estimated funding requirement of {financials.get('funding_required', 'to be confirmed')}."
+            ),
+            "elevator_pitch": (
+                f"{idea} for {state.startup_context.get('target_customer') or 'a focused customer segment'}, "
+                f"delivered through a {strategy.get('business_model', 'scalable')} model."
+            ),
+            "swot": {
+                "strengths": analysis.get("strengths", [])[:4],
+                "weaknesses": analysis.get("weaknesses", [])[:4],
+                "opportunities": market.get("market_opportunities", [])[:4],
+                "threats": (market.get("market_challenges", []) + analysis.get("risks", []))[:4],
+            },
+            "pitch_deck_outline": [
+                "Problem: Customer pain and cost of inaction",
+                "Solution: Product workflow and differentiation",
+                "Market Size: TAM, SAM, SOM, and beachhead",
+                "Product: Demo and measurable customer outcomes",
+                "Business Model: Pricing, margins, and expansion",
+                "Traction: Pilot evidence and conversion metrics",
+                "Competition: Alternatives and defensible moat",
+                "Go-To-Market: Acquisition channels and economics",
+                "Financial Plan: Projections and break-even",
+                "Team: Domain expertise and execution capability",
+                "The Ask: Capital allocation and milestones",
+                "Vision: Long-term category opportunity",
+            ],
+            "unit_economics_score": normalized_score,
+            "execution_feasibility_score": max(1.0, normalized_score - 0.5),
+            "defensibility_moat_score": max(1.0, normalized_score - 1.0),
+            "traction_evidence_score": 7.0 if stage_pref.lower() not in {"idea", "pre-seed"} else 5.5,
+            "market_tailwinds_score": normalized_score,
+        }
 
         # Deterministic scoring via ScoringTool
         ue_sc = float(data.get("unit_economics_score", 7.5))

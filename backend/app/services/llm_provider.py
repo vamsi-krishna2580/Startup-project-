@@ -116,7 +116,7 @@ class LLMProvider:
                 "Please configure GEMINI_API_KEY in your .env or system environment."
             )
 
-        model_name = settings.LLM_MODEL or "gemini-2.5-flash"
+        model_name = settings.GEMINI_MODEL
         
         # We can call the Google Gemini REST API using httpx
         import httpx
@@ -166,7 +166,7 @@ class LLMProvider:
         if not api_key:
             raise LLMConfigurationError("OPENAI_API_KEY is not configured in backend environment.")
 
-        model_name = settings.LLM_MODEL or "gpt-4o-mini"
+        model_name = settings.OPENAI_MODEL
         import httpx
         url = "https://api.openai.com/v1/chat/completions"
 
@@ -201,7 +201,7 @@ class LLMProvider:
         if not api_key:
             raise LLMConfigurationError("ANTHROPIC_API_KEY is not configured in backend environment.")
 
-        model_name = settings.LLM_MODEL or "claude-3-5-sonnet-20241022"
+        model_name = settings.ANTHROPIC_MODEL
         import httpx
         url = "https://api.anthropic.com/v1/messages"
 
@@ -231,7 +231,7 @@ class LLMProvider:
     @classmethod
     async def _call_ollama(cls, prompt: str, system_instruction: Optional[str]) -> Dict[str, Any]:
         base_url = settings.OLLAMA_BASE_URL.rstrip("/")
-        model_name = settings.LLM_MODEL or "llama3"
+        model_name = settings.OLLAMA_MODEL
 
         import httpx
         url = f"{base_url}/api/chat"
@@ -248,7 +248,12 @@ class LLMProvider:
             "stream": False
         }
 
-        resp = await cls._post_json("Ollama", url, payload)
+        headers = {
+            "Content-Type": "application/json",
+            # Prevent the free ngrok browser interstitial on server-to-server calls.
+            "ngrok-skip-browser-warning": "true",
+        }
+        resp = await cls._post_json("Ollama", url, payload, headers=headers)
         if resp.status_code != 200:
             raise LLMExecutionError(f"Ollama returned status {resp.status_code}: {resp.text}")
 

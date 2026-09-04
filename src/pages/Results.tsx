@@ -45,6 +45,26 @@ export const Results: React.FC<ResultsProps> = ({
 
   return (
     <div id="results-dashboard-container" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      {report.source && report.source !== 'api' && (
+        <div className={`rounded-2xl border px-4 py-3 text-sm flex items-start gap-2 ${
+          report.source.includes('fallback')
+            ? 'border-amber-300 bg-amber-50 text-amber-900'
+            : 'border-blue-200 bg-blue-50 text-blue-900'
+        }`}>
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+          <div>
+            <div className="font-bold">
+              {report.source.includes('fallback') ? 'Resilient fallback report' : 'Demonstration report'}
+            </div>
+            <div className="text-xs mt-0.5 opacity-80">
+              {report.source.includes('fallback')
+                ? 'The external AI provider was unavailable or rate-limited. A complete baseline report was generated locally; verify market figures before investment decisions.'
+                : 'This report uses demonstration data and did not call the live analysis provider.'}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Top Banner Metric Overview */}
       <MetricBanner
         opportunityScore={report.startup_analysis.opportunity_score}

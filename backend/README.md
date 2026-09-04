@@ -60,12 +60,12 @@ Set your API key (e.g., `GEMINI_API_KEY`, `OPENAI_API_KEY`, or `ANTHROPIC_API_KE
 
 ### 2. Install Dependencies
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
 
 ### 3. Run FastAPI Server
 ```bash
-uvicorn app.main:app --port 8000 --reload
+uv run uvicorn app.main:app --port 8000 --reload
 ```
 or run as a module:
 ```bash
